@@ -8,6 +8,8 @@
 #include <SDL2/SDL_scancode.h>
 #include <SDL2/SDL_stdinc.h>
 #include <SDL2/SDL_timer.h>
+#include <SDL2/SDL_ttf.h>
+#include <math.h>
 #include <stdio.h>
 
 #define DEBUG 0
@@ -79,13 +81,29 @@ int main() {
   struct pallet bot;
   struct ball ball;
 
+  TTF_Init();
+
+  TTF_Font *font;
+  font = TTF_OpenFont("upheavtt.ttf", 24);
+  SDL_Surface *text;
+  SDL_Color color = {0, 255, 0};
+
+  SDL_Texture *text_texture;
+
   SDL_Rect pallet_template;
   pallet_template.h = 150;
   pallet_template.w = 15;
   pallet_template.y = (SCREEN_H / 2) - (pallet_template.h / 2);
 
+  SDL_Rect text_rect;
+  text_rect.w = 100;
+  text_rect.h = 100;
+  text_rect.x = 50;
+  text_rect.y = 50;
+
   player.rect = pallet_template;
   player.pos.x = 15;
+  player.pos.y = 0;
   float player_speed = 0.25;
   bot.rect = pallet_template;
   bot.pos.x = SCREEN_W - (15 * 2);
@@ -109,7 +127,7 @@ int main() {
 
   const Uint8 *key = SDL_GetKeyboardState(NULL);
 
-  int score;
+  int score = 0;
 
   while (event.type != SDL_QUIT) {
     SDL_PollEvent(&event);
@@ -122,6 +140,11 @@ int main() {
          (double)SDL_GetPerformanceFrequency();
 
     // -- Logic -- //
+    char score_str[4];
+    sprintf(score_str, "%d", score);
+    text = TTF_RenderText_Solid(font, score_str, color);
+    text_texture = SDL_CreateTextureFromSurface(ren, text);
+    SDL_Rect dest = {0, 0, text->w, text->h};
 
     pl_dt_last = pl_dt_new;
     pl_dt_new = player.pos.y;
@@ -157,6 +180,12 @@ int main() {
       ball.vel.x *= 1.1f;
     }
 
+    // if (ball.vel.x <= 0.5) {
+    // ball.vel.x = 0.5;
+    //}
+
+    // printf("%f\n", ball.vel.x);
+
     if (ball.pos.y > SCREEN_H - ball.col.h) {
       ball.vel.y *= -1;
       ball.pos.y = SCREEN_H - ball.col.h;
@@ -166,7 +195,15 @@ int main() {
       ball.pos.y = 0;
     }
 
-    bot.pos.y = ball.pos.y - (bot.pos.y / 2); // AI
+    if (ball.pos.y < bot.pos.y + ((float)bot.rect.h / 2)) {
+      bot.pos.y -= player_speed * dt;
+    }
+
+    if (ball.pos.y > bot.pos.y + ((float)bot.rect.h / 2)) {
+      bot.pos.y += player_speed * dt;
+    }
+
+    // bot.pos.y = ball.pos.y - (bot.pos.y / 2); // AI
 
     if (player.pos.y > SCREEN_H - player.rect.h) {
       player.pos.y = SCREEN_H - player.rect.h;
@@ -175,14 +212,43 @@ int main() {
       player.pos.y = 0;
     }
 
+    if (bot.pos.y > SCREEN_H - bot.rect.h) {
+      bot.pos.y = SCREEN_H - bot.rect.h;
+    }
+    if (bot.pos.y < 0) {
+      bot.pos.y = 0;
+    }
+
     if (ball.pos.x < 0) {
-      score++;
+      score--;
       ball.pos = new_vec2(((float)SCREEN_W / 2) - ((float)ball.col.w / 2),
                           (float)SCREEN_H / 2 - ((float)ball.col.w / 2) -
                               ((float)ball.col.h / 2));
       ball.vel.x *= -1;
       ball.vel.y = 0;
     }
+    if (ball.pos.x > SCREEN_W) {
+      score++;
+      ball.pos = new_vec2(((float)SCREEN_W / 2) - ((float)ball.col.w / 2),
+                          (float)SCREEN_H / 2 - ((float)ball.col.w / 2) -
+                              ((float)ball.col.h / 2));
+      ball.vel.y = 0;
+      ball.vel.x = 0.1;
+    }
+
+    if (ball.pos.x > 1000) {
+      // ball out of bounds
+      ball.pos.x = SCREEN_W / 2;
+      ball.vel.x = 0.1;
+    }
+
+    if (ball.pos.y > 1000) {
+      // ball out of bounds
+      ball.pos.y = SCREEN_H / 2;
+      ball.vel.y = 0.1;
+    }
+
+    // printf("pos: %f, %f \n", player.pos.x, player.pos.y);
 
     // -- Setting vars -- //
 
@@ -200,6 +266,7 @@ int main() {
     DrawDottedLine(ren, SCREEN_W / 2, 0, SCREEN_W / 2, SCREEN_H);
     DrawCircle(ren, ball.pos.x + ((float)ball.col.w / 2),
                ball.pos.y + ((float)ball.col.h / 2), 11);
+    SDL_RenderCopy(ren, text_texture, &text_rect, &dest);
 #if DEBUG
     SDL_RenderDrawRect(ren, &ball.col);
 #endif
@@ -209,6 +276,8 @@ int main() {
   }
 
   SDL_DestroyWindow(win);
+  TTF_CloseFont(font);
+  TTF_Quit();
   SDL_DestroyRenderer(ren);
   SDL_Quit();
   return 0;
