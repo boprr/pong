@@ -1,4 +1,3 @@
-
 #include "globals.h"
 #include "structs.h"
 #include <SDL2/SDL.h>
@@ -11,7 +10,66 @@
 #include <SDL2/SDL_timer.h>
 #include <stdio.h>
 
-#define DEBUG 1
+#define DEBUG 0
+
+void DrawCircle(SDL_Renderer *renderer, int32_t centreX, int32_t centreY,
+                int32_t radius) {
+  const int32_t diameter = (radius * 2);
+
+  int32_t x = (radius - 1);
+  int32_t y = 0;
+  int32_t tx = 1;
+  int32_t ty = 1;
+  int32_t error = (tx - diameter);
+
+  while (x >= y) {
+    //  Each of the following renders an octant of the circle
+    SDL_RenderDrawPoint(renderer, centreX + x, centreY - y);
+    SDL_RenderDrawPoint(renderer, centreX + x, centreY + y);
+    SDL_RenderDrawPoint(renderer, centreX - x, centreY - y);
+    SDL_RenderDrawPoint(renderer, centreX - x, centreY + y);
+    SDL_RenderDrawPoint(renderer, centreX + y, centreY - x);
+    SDL_RenderDrawPoint(renderer, centreX + y, centreY + x);
+    SDL_RenderDrawPoint(renderer, centreX - y, centreY - x);
+    SDL_RenderDrawPoint(renderer, centreX - y, centreY + x);
+
+    if (error <= 0) {
+      ++y;
+      error += ty;
+      ty += 2;
+    }
+
+    if (error > 0) {
+      --x;
+      tx += 2;
+      error += (tx - diameter);
+    }
+  }
+}
+
+void DrawDottedLine(SDL_Renderer *renderer, int x0, int y0, int x1, int y1) {
+  int dx = abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
+  int dy = -abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
+  int err = dx + dy, e2;
+  int count = 0;
+  while (1) {
+    if (count < 10) {
+      SDL_RenderDrawPoint(renderer, x0, y0);
+    }
+    if (x0 == x1 && y0 == y1)
+      break;
+    e2 = 2 * err;
+    if (e2 > dy) {
+      err += dy;
+      x0 += sx;
+    }
+    if (e2 < dx) {
+      err += dx;
+      y0 += sy;
+    }
+    count = (count + 1) % 20;
+  }
+}
 
 int main() {
   SDL_Window *win = SDL_CreateWindow("PONG", 0, 0, SCREEN_W, SCREEN_H, 0);
@@ -28,19 +86,19 @@ int main() {
 
   player.rect = pallet_template;
   player.pos.x = 15;
-  float player_speed = 0.5;
+  float player_speed = 0.25;
   bot.rect = pallet_template;
   bot.pos.x = SCREEN_W - (15 * 2);
 
-  ball.col.h = 10;
-  ball.col.w = 10;
+  ball.col.h = 20;
+  ball.col.w = 20;
   ball.pos = new_vec2(((float)SCREEN_W / 2) - ((float)ball.col.w / 2),
                       (float)SCREEN_H / 2 - ((float)ball.col.w / 2) -
                           ((float)ball.col.h / 2));
 
   SDL_Event event;
 
-  ball.vel.x = -0.1;
+  ball.vel.x = -0.2;
 
   float pl_dt_last, pl_dt_new, pl_dt;
   float bt_dt_last, bt_dt_new, bt_dt;
@@ -50,6 +108,8 @@ int main() {
   double dt = 0;
 
   const Uint8 *key = SDL_GetKeyboardState(NULL);
+
+  int score;
 
   while (event.type != SDL_QUIT) {
     SDL_PollEvent(&event);
@@ -87,23 +147,42 @@ int main() {
       ball.pos.x += 0.1;
       ball.vel.y += pl_dt;
       ball.pos.y += 0.1;
+      ball.vel.x *= 1.1f;
     }
     if (SDL_HasIntersection(&bot.rect, &ball.col)) {
       ball.vel.x *= -1;
       ball.pos.x -= 0.1;
       ball.vel.y -= bt_dt;
       ball.pos.y -= 0.1;
+      ball.vel.x *= 1.1f;
     }
 
-    printf("x:%f, y:%f \n", ball.pos.y, ball.pos.x);
-
-    if (ball.pos.y > SCREEN_H - ((float)ball.col.h / 2) ||
-        ball.pos.y < ball.col.h / 2) {
+    if (ball.pos.y > SCREEN_H - ball.col.h) {
       ball.vel.y *= -1;
-      ball.vel.y -= 0.1;
+      ball.pos.y = SCREEN_H - ball.col.h;
+    }
+    if (ball.pos.y < 0) {
+      ball.vel.y *= -1;
+      ball.pos.y = 0;
     }
 
     bot.pos.y = ball.pos.y - (bot.pos.y / 2); // AI
+
+    if (player.pos.y > SCREEN_H - player.rect.h) {
+      player.pos.y = SCREEN_H - player.rect.h;
+    }
+    if (player.pos.y < 0) {
+      player.pos.y = 0;
+    }
+
+    if (ball.pos.x < 0) {
+      score++;
+      ball.pos = new_vec2(((float)SCREEN_W / 2) - ((float)ball.col.w / 2),
+                          (float)SCREEN_H / 2 - ((float)ball.col.w / 2) -
+                              ((float)ball.col.h / 2));
+      ball.vel.x *= -1;
+      ball.vel.y = 0;
+    }
 
     // -- Setting vars -- //
 
@@ -118,6 +197,9 @@ int main() {
 
     SDL_RenderDrawRect(ren, &bot.rect);
     SDL_RenderDrawRect(ren, &player.rect);
+    DrawDottedLine(ren, SCREEN_W / 2, 0, SCREEN_W / 2, SCREEN_H);
+    DrawCircle(ren, ball.pos.x + ((float)ball.col.w / 2),
+               ball.pos.y + ((float)ball.col.h / 2), 11);
 #if DEBUG
     SDL_RenderDrawRect(ren, &ball.col);
 #endif
