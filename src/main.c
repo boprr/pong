@@ -8,7 +8,6 @@
 #include <SDL2/SDL_scancode.h>
 #include <SDL2/SDL_stdinc.h>
 #include <SDL2/SDL_timer.h>
-#include <SDL2/SDL_ttf.h>
 #include <math.h>
 #include <stdio.h>
 
@@ -77,29 +76,16 @@ int main() {
   SDL_Window *win = SDL_CreateWindow("PONG", 0, 0, SCREEN_W, SCREEN_H, 0);
   SDL_Renderer *ren = SDL_CreateRenderer(win, 0, 0);
 
+  unsigned int diff = 1; // 0 easy | 1 normal | 2 impossible
+
   struct pallet player;
   struct pallet bot;
   struct ball ball;
-
-  TTF_Init();
-
-  TTF_Font *font;
-  font = TTF_OpenFont("upheavtt.ttf", 24);
-  SDL_Surface *text;
-  SDL_Color color = {0, 255, 0};
-
-  SDL_Texture *text_texture;
 
   SDL_Rect pallet_template;
   pallet_template.h = 150;
   pallet_template.w = 15;
   pallet_template.y = (SCREEN_H / 2) - (pallet_template.h / 2);
-
-  SDL_Rect text_rect;
-  text_rect.w = 100;
-  text_rect.h = 100;
-  text_rect.x = 50;
-  text_rect.y = 50;
 
   player.rect = pallet_template;
   player.pos.x = 15;
@@ -121,6 +107,15 @@ int main() {
   float pl_dt_last, pl_dt_new, pl_dt;
   float bt_dt_last, bt_dt_new, bt_dt;
 
+  float bot_speed = 0.1;
+
+  if (diff == 0) {
+    bot_speed = 0.1;
+  }
+  if (diff == 1) {
+    bot_speed = 0.25;
+  }
+
   Uint64 dt_now = SDL_GetPerformanceCounter();
   Uint64 dt_last = 0;
   double dt = 0;
@@ -140,12 +135,6 @@ int main() {
          (double)SDL_GetPerformanceFrequency();
 
     // -- Logic -- //
-    char score_str[4];
-    sprintf(score_str, "%d", score);
-    text = TTF_RenderText_Solid(font, score_str, color);
-    text_texture = SDL_CreateTextureFromSurface(ren, text);
-    SDL_Rect dest = {0, 0, text->w, text->h};
-
     pl_dt_last = pl_dt_new;
     pl_dt_new = player.pos.y;
 
@@ -167,22 +156,27 @@ int main() {
 
     if (SDL_HasIntersection(&player.rect, &ball.col)) {
       ball.vel.x *= -1;
-      ball.pos.x += 0.1;
+      ball.pos.x += 1;
       ball.vel.y += pl_dt;
       ball.pos.y += 0.1;
       ball.vel.x *= 1.1f;
     }
     if (SDL_HasIntersection(&bot.rect, &ball.col)) {
       ball.vel.x *= -1;
-      ball.pos.x -= 0.1;
-      ball.vel.y -= bt_dt;
+      ball.pos.x -= 1;
+      ball.vel.y += bt_dt;
       ball.pos.y -= 0.1;
       ball.vel.x *= 1.1f;
     }
 
-    // if (ball.vel.x <= 0.5) {
-    // ball.vel.x = 0.5;
-    //}
+    if ((unsigned int)ball.vel.x >= 0.5f) {
+      if ((unsigned int)ball.vel.x != ball.vel.x) {
+        ball.vel.x = -0.5;
+      } else {
+        ball.vel.x = 0.5;
+      }
+    }
+    // perfect
 
     // printf("%f\n", ball.vel.x);
 
@@ -195,15 +189,18 @@ int main() {
       ball.pos.y = 0;
     }
 
-    if (ball.pos.y < bot.pos.y + ((float)bot.rect.h / 2)) {
-      bot.pos.y -= player_speed * dt;
-    }
+    if (diff == 2) {
+      bot.pos.y = ball.pos.y - ((float)bot.rect.h / 2); // AI
+    } else {
 
-    if (ball.pos.y > bot.pos.y + ((float)bot.rect.h / 2)) {
-      bot.pos.y += player_speed * dt;
-    }
+      if (ball.pos.y < bot.pos.y + ((float)bot.rect.h / 2)) {
+        bot.pos.y -= player_speed / 2 * dt;
+      }
 
-    // bot.pos.y = ball.pos.y - (bot.pos.y / 2); // AI
+      if (ball.pos.y > bot.pos.y + ((float)bot.rect.h / 2)) {
+        bot.pos.y += player_speed / 2 * dt;
+      }
+    }
 
     if (player.pos.y > SCREEN_H - player.rect.h) {
       player.pos.y = SCREEN_H - player.rect.h;
@@ -224,7 +221,8 @@ int main() {
       ball.pos = new_vec2(((float)SCREEN_W / 2) - ((float)ball.col.w / 2),
                           (float)SCREEN_H / 2 - ((float)ball.col.w / 2) -
                               ((float)ball.col.h / 2));
-      ball.vel.x *= -1;
+      ball.vel.x = -0.2;
+      player.pos.y = (float)SCREEN_H / 2 - ((float)player.rect.h / 2);
       ball.vel.y = 0;
     }
     if (ball.pos.x > SCREEN_W) {
@@ -233,7 +231,7 @@ int main() {
                           (float)SCREEN_H / 2 - ((float)ball.col.w / 2) -
                               ((float)ball.col.h / 2));
       ball.vel.y = 0;
-      ball.vel.x = 0.1;
+      ball.vel.x = 0.2;
     }
 
     if (ball.pos.x > 1000) {
@@ -266,7 +264,6 @@ int main() {
     DrawDottedLine(ren, SCREEN_W / 2, 0, SCREEN_W / 2, SCREEN_H);
     DrawCircle(ren, ball.pos.x + ((float)ball.col.w / 2),
                ball.pos.y + ((float)ball.col.h / 2), 11);
-    SDL_RenderCopy(ren, text_texture, &text_rect, &dest);
 #if DEBUG
     SDL_RenderDrawRect(ren, &ball.col);
 #endif
@@ -276,8 +273,6 @@ int main() {
   }
 
   SDL_DestroyWindow(win);
-  TTF_CloseFont(font);
-  TTF_Quit();
   SDL_DestroyRenderer(ren);
   SDL_Quit();
   return 0;
