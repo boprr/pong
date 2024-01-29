@@ -1,128 +1,47 @@
+#include "draw.h"
 #include "globals.h"
+#include "macros.h"
 #include "structs.h"
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_events.h>
-#include <SDL2/SDL_keycode.h>
-#include <SDL2/SDL_rect.h>
 #include <SDL2/SDL_render.h>
-#include <SDL2/SDL_scancode.h>
-#include <SDL2/SDL_stdinc.h>
 #include <SDL2/SDL_timer.h>
-#include <math.h>
-#include <stdio.h>
-
-#define DEBUG 0
-
-void DrawCircle(SDL_Renderer *renderer, int32_t centreX, int32_t centreY,
-                int32_t radius) {
-  const int32_t diameter = (radius * 2);
-
-  int32_t x = (radius - 1);
-  int32_t y = 0;
-  int32_t tx = 1;
-  int32_t ty = 1;
-  int32_t error = (tx - diameter);
-
-  while (x >= y) {
-    //  Each of the following renders an octant of the circle
-    SDL_RenderDrawPoint(renderer, centreX + x, centreY - y);
-    SDL_RenderDrawPoint(renderer, centreX + x, centreY + y);
-    SDL_RenderDrawPoint(renderer, centreX - x, centreY - y);
-    SDL_RenderDrawPoint(renderer, centreX - x, centreY + y);
-    SDL_RenderDrawPoint(renderer, centreX + y, centreY - x);
-    SDL_RenderDrawPoint(renderer, centreX + y, centreY + x);
-    SDL_RenderDrawPoint(renderer, centreX - y, centreY - x);
-    SDL_RenderDrawPoint(renderer, centreX - y, centreY + x);
-
-    if (error <= 0) {
-      ++y;
-      error += ty;
-      ty += 2;
-    }
-
-    if (error > 0) {
-      --x;
-      tx += 2;
-      error += (tx - diameter);
-    }
-  }
-}
-
-void DrawDottedLine(SDL_Renderer *renderer, int x0, int y0, int x1, int y1) {
-  int dx = abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
-  int dy = -abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
-  int err = dx + dy, e2;
-  int count = 0;
-  while (1) {
-    if (count < 10) {
-      SDL_RenderDrawPoint(renderer, x0, y0);
-    }
-    if (x0 == x1 && y0 == y1)
-      break;
-    e2 = 2 * err;
-    if (e2 > dy) {
-      err += dy;
-      x0 += sx;
-    }
-    if (e2 < dx) {
-      err += dx;
-      y0 += sy;
-    }
-    count = (count + 1) % 20;
-  }
-}
 
 int main() {
+  SDL_Init(SDL_INIT_VIDEO);
+
   SDL_Window *win = SDL_CreateWindow("PONG", 0, 0, SCREEN_W, SCREEN_H, 0);
-  SDL_Renderer *ren = SDL_CreateRenderer(win, 0, 0);
+  SDL_Renderer *ren = SDL_CreateRenderer(win, 0, SDL_RENDERER_ACCELERATED);
 
-  unsigned int diff = 1; // 0 easy | 1 normal | 2 impossible
-
-  struct pallet player;
-  struct pallet bot;
-  struct ball ball;
+  pallet player, bot;
+  ball ball;
 
   SDL_Rect pallet_template;
   pallet_template.h = 150;
   pallet_template.w = 15;
-  pallet_template.y = (SCREEN_H / 2) - (pallet_template.h / 2);
+  pallet_template.y = middle_Y;
 
   player.rect = pallet_template;
-  player.pos.x = 15;
-  player.pos.y = 0;
-  float player_speed = 0.25;
+  player.pos.x = pallet_template.w + (pallet_middle_X);
+  player.pos.y = pallet_template.y;
+
   bot.rect = pallet_template;
-  bot.pos.x = SCREEN_W - (15 * 2);
+  bot.pos.x = SCREEN_W - pallet_template.w - (pallet_middle_X);
+  bot.pos.y = pallet_template.y;
 
   ball.col.h = 20;
   ball.col.w = 20;
-  ball.pos = new_vec2(((float)SCREEN_W / 2) - ((float)ball.col.w / 2),
-                      (float)SCREEN_H / 2 - ((float)ball.col.w / 2) -
-                          ((float)ball.col.h / 2));
-
-  SDL_Event event;
-
+  ball.pos = new_vec2(middle_X, middle_Y);
   ball.vel.x = -0.2;
 
-  float pl_dt_last, pl_dt_new, pl_dt;
-  float bt_dt_last, bt_dt_new, bt_dt;
-
-  float bot_speed = 0.1;
-
-  if (diff == 0) {
-    bot_speed = 0.1;
-  }
-  if (diff == 1) {
-    bot_speed = 0.25;
-  }
+  SDL_Event event;
+  const Uint8 *key = SDL_GetKeyboardState(NULL);
 
   Uint64 dt_now = SDL_GetPerformanceCounter();
   Uint64 dt_last = 0;
   double dt = 0;
 
-  const Uint8 *key = SDL_GetKeyboardState(NULL);
-
-  int score = 0;
+  int score;
 
   while (event.type != SDL_QUIT) {
     SDL_PollEvent(&event);
@@ -135,140 +54,112 @@ int main() {
          (double)SDL_GetPerformanceFrequency();
 
     // -- Logic -- //
-    pl_dt_last = pl_dt_new;
-    pl_dt_new = player.pos.y;
 
-    bt_dt_last = bt_dt_new;
-    bt_dt_new = bot.pos.y;
-
-    pl_dt = pl_dt_new - pl_dt_last;
-    bt_dt = bt_dt_new - bt_dt_last;
+    player.d_last = player.d_new;
+    bot.d_last = bot.d_new;
+    player.d_new = player.pos;
+    bot.d_new = bot.pos;
+    player.delta = sub_vec2(player.d_new, player.d_last);
+    bot.delta = sub_vec2(bot.d_new, bot.d_last);
 
     if (key[SDL_SCANCODE_W]) {
-      player.pos.y -= player_speed * dt;
+      player.pos.y -= 0.25 * dt;
     }
     if (key[SDL_SCANCODE_S]) {
-      player.pos.y += player_speed * dt;
+      player.pos.y += 0.25 * dt;
     }
 
-    ball.pos.x += ball.vel.x * dt;
-    ball.pos.y += ball.vel.y * dt;
+    // bot ai
+    if (bot.pos.y > ball.pos.y) {
+      bot.pos.y -= 0.25 * dt;
+    }
+    if (bot.pos.y < ball.pos.y) {
+      bot.pos.y += 0.25 * dt;
+    }
+
+    if (player.pos.y < pallet_middle_Y) {
+      player.pos.y = pallet_middle_Y;
+    }
+    if (player.pos.y > SCREEN_H - pallet_middle_Y) {
+      player.pos.y = SCREEN_H - pallet_middle_Y;
+    }
+
+    if (bot.pos.y < pallet_middle_Y) {
+      bot.pos.y = pallet_middle_Y;
+    }
+    if (bot.pos.y > SCREEN_H - pallet_middle_Y) {
+      bot.pos.y = SCREEN_H - pallet_middle_Y;
+    }
 
     if (SDL_HasIntersection(&player.rect, &ball.col)) {
       ball.vel.x *= -1;
       ball.pos.x += 1;
-      ball.vel.y += pl_dt;
+      ball.vel.y += player.delta.y;
       ball.pos.y += 0.1;
       ball.vel.x *= 1.1f;
     }
     if (SDL_HasIntersection(&bot.rect, &ball.col)) {
       ball.vel.x *= -1;
       ball.pos.x -= 1;
-      ball.vel.y += bt_dt;
+      ball.vel.y += bot.delta.y;
       ball.pos.y -= 0.1;
       ball.vel.x *= 1.1f;
     }
 
-    if ((unsigned int)ball.vel.x >= 0.5f) {
+    if ((unsigned int)ball.vel.x >= 0.6f) {
       if ((unsigned int)ball.vel.x != ball.vel.x) {
-        ball.vel.x = -0.5;
+        ball.vel.x = -0.6;
       } else {
-        ball.vel.x = 0.5;
+        ball.vel.x = 0.6;
       }
     }
-    // perfect
+    // wtf
 
-    // printf("%f\n", ball.vel.x);
-
-    if (ball.pos.y > SCREEN_H - ball.col.h) {
+    if (ball.pos.y < 0 + (float)ball.col.h / 2 ||
+        ball.pos.y > SCREEN_H - (float)ball.col.h / 2) {
       ball.vel.y *= -1;
-      ball.pos.y = SCREEN_H - ball.col.h;
-    }
-    if (ball.pos.y < 0) {
-      ball.vel.y *= -1;
-      ball.pos.y = 0;
-    }
-
-    if (diff == 2) {
-      bot.pos.y = ball.pos.y - ((float)bot.rect.h / 2); // AI
-    } else {
-
-      if (ball.pos.y < bot.pos.y + ((float)bot.rect.h / 2)) {
-        bot.pos.y -= player_speed / 2 * dt;
-      }
-
-      if (ball.pos.y > bot.pos.y + ((float)bot.rect.h / 2)) {
-        bot.pos.y += player_speed / 2 * dt;
-      }
-    }
-
-    if (player.pos.y > SCREEN_H - player.rect.h) {
-      player.pos.y = SCREEN_H - player.rect.h;
-    }
-    if (player.pos.y < 0) {
-      player.pos.y = 0;
-    }
-
-    if (bot.pos.y > SCREEN_H - bot.rect.h) {
-      bot.pos.y = SCREEN_H - bot.rect.h;
-    }
-    if (bot.pos.y < 0) {
-      bot.pos.y = 0;
     }
 
     if (ball.pos.x < 0) {
       score--;
-      ball.pos = new_vec2(((float)SCREEN_W / 2) - ((float)ball.col.w / 2),
-                          (float)SCREEN_H / 2 - ((float)ball.col.w / 2) -
-                              ((float)ball.col.h / 2));
-      ball.vel.x = -0.2;
-      player.pos.y = (float)SCREEN_H / 2 - ((float)player.rect.h / 2);
+      ball.pos = new_vec2(middle_X, middle_Y);
+      ball.vel.x = -0.3;
+      player.pos.y = middle_Y;
       ball.vel.y = 0;
     }
     if (ball.pos.x > SCREEN_W) {
       score++;
-      ball.pos = new_vec2(((float)SCREEN_W / 2) - ((float)ball.col.w / 2),
-                          (float)SCREEN_H / 2 - ((float)ball.col.w / 2) -
-                              ((float)ball.col.h / 2));
+      ball.pos = new_vec2(middle_X, middle_Y);
       ball.vel.y = 0;
       ball.vel.x = 0.2;
     }
 
-    if (ball.pos.x > 1000) {
-      // ball out of bounds
-      ball.pos.x = SCREEN_W / 2;
-      ball.vel.x = 0.1;
+    /*
+    if (dt > (1000 / 200)) {
+    } else {
+      SDL_Delay((1000 / 200) - dt);
     }
 
-    if (ball.pos.y > 1000) {
-      // ball out of bounds
-      ball.pos.y = SCREEN_H / 2;
-      ball.vel.y = 0.1;
-    }
-
-    // printf("pos: %f, %f \n", player.pos.x, player.pos.y);
+    printf("FPS: %i\n", SDL_GetPerformanceFrequency() / (dt_now - dt_last));
+    */
+    ball.pos.x += ball.vel.x * dt;
+    ball.pos.y += ball.vel.y * dt;
 
     // -- Setting vars -- //
-
     ball.col = set_rect_pos(ball.col, ball.pos);
     player.rect = set_rect_pos(player.rect, player.pos);
     bot.rect = set_rect_pos(bot.rect, bot.pos);
 
     // -- Rendering -- //
     SDL_RenderClear(ren);
-    SDL_RenderClear(ren);
     SDL_SetRenderDrawColor(ren, 255, 255, 255, 255); // FG
 
     SDL_RenderDrawRect(ren, &bot.rect);
     SDL_RenderDrawRect(ren, &player.rect);
     DrawDottedLine(ren, SCREEN_W / 2, 0, SCREEN_W / 2, SCREEN_H);
-    DrawCircle(ren, ball.pos.x + ((float)ball.col.w / 2),
-               ball.pos.y + ((float)ball.col.h / 2), 11);
-#if DEBUG
-    SDL_RenderDrawRect(ren, &ball.col);
-#endif
+    DrawCircle(ren, ball.pos.x, ball.pos.y, ball.col.h / 2);
 
-    SDL_SetRenderDrawColor(ren, 0, 0, 0, 255); // BG
+    SDL_SetRenderDrawColor(ren, 0, 0, 0, 255);
     SDL_RenderPresent(ren);
   }
 
