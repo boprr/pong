@@ -4,11 +4,15 @@
 #include "structs.h"
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_events.h>
+#include <SDL2/SDL_rect.h>
 #include <SDL2/SDL_render.h>
 #include <SDL2/SDL_timer.h>
+#include <SDL2/SDL_ttf.h>
+#include <stdio.h>
 
 int main() {
   SDL_Init(SDL_INIT_VIDEO);
+  TTF_Init();
 
   SDL_Window *win = SDL_CreateWindow("PONG", 0, 0, SCREEN_W, SCREEN_H, 0);
   SDL_Renderer *ren = SDL_CreateRenderer(win, 0, SDL_RENDERER_ACCELERATED);
@@ -41,7 +45,16 @@ int main() {
   Uint64 dt_last = 0;
   double dt = 0;
 
-  int score;
+  int score = 0;
+
+  TTF_Font *font = TTF_OpenFont("assets/font/Terminus.ttf", 100);
+  SDL_Color White = {255, 255, 255};
+
+  SDL_Rect score_rect;
+  score_rect.h = 100;
+  score_rect.w = 100;
+  score_rect.x = 0;
+  score_rect.y = 0;
 
   while (event.type != SDL_QUIT) {
     SDL_PollEvent(&event);
@@ -134,16 +147,20 @@ int main() {
       ball.vel.x = 0.2;
     }
 
-    /*
-    if (dt > (1000 / 200)) {
-    } else {
-      SDL_Delay((1000 / 200) - dt);
-    }
+    // printf("FPS: %o\n", SDL_GetPerformanceFrequency() / (dt_now - dt_last));
 
-    printf("FPS: %i\n", SDL_GetPerformanceFrequency() / (dt_now - dt_last));
-    */
     ball.pos.x += ball.vel.x * dt;
     ball.pos.y += ball.vel.y * dt;
+
+    // -- Font -- //
+    char score_str[4];
+    sprintf(score_str, "%i", score);
+
+    SDL_Surface *surfaceScore = TTF_RenderText_Solid(font, score_str, White);
+    SDL_Texture *ScoreSurface = SDL_CreateTextureFromSurface(ren, surfaceScore);
+    TTF_SizeText(font, score_str, &score_rect.w, &score_rect.h);
+
+    score_rect.x = SCREEN_W / 2 - (score_rect.w / 2);
 
     // -- Setting vars -- //
     ball.col = set_rect_pos(ball.col, ball.pos);
@@ -157,10 +174,18 @@ int main() {
     SDL_RenderDrawRect(ren, &bot.rect);
     SDL_RenderDrawRect(ren, &player.rect);
     DrawDottedLine(ren, SCREEN_W / 2, 0, SCREEN_W / 2, SCREEN_H);
+    SDL_SetRenderDrawColor(ren, 0, 0, 0, 255);
+    SDL_RenderFillRect(ren, &score_rect);
+
+    SDL_SetRenderDrawColor(ren, 255, 255, 255, 255); // FG
     DrawCircle(ren, ball.pos.x, ball.pos.y, ball.col.h / 2);
+    SDL_RenderCopy(ren, ScoreSurface, NULL, &score_rect);
 
     SDL_SetRenderDrawColor(ren, 0, 0, 0, 255);
     SDL_RenderPresent(ren);
+
+    SDL_FreeSurface(surfaceScore);
+    SDL_DestroyTexture(ScoreSurface);
   }
 
   SDL_DestroyWindow(win);
@@ -168,3 +193,9 @@ int main() {
   SDL_Quit();
   return 0;
 }
+
+/*
+--- TODO ---
+1. fix collisions on 10-200 fps
+2. audio
+*/
