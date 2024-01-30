@@ -12,6 +12,9 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
+    - name: dependencies
+      run: sudo apt install cmake libsdl2-dev g++
+
     - name: make
       run: cmake . . && make
 
