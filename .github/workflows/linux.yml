@@ -1,0 +1,26 @@
+name: linux-release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: make
+      run: cmake . . && make
+
+    - uses: montudor/action-zip@v1
+      with:
+        args: zip -qq -r linux.zip bin/pong
+
+    - name: Release
+      uses: softprops/action-gh-release@v1
+      with:
+          files: |
+            linux.zip
