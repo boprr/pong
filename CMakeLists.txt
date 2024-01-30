@@ -2,6 +2,9 @@
 cmake_minimum_required(VERSION 3.7)
 project(pong)
 
+# includes cmake/FindSDL2.cmake
+set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
+
 find_package(SDL2 REQUIRED)
 include_directories(pong ${SDL2_INCLUDE_DIRS})
 
@@ -20,6 +23,6 @@ endif()
 file(GLOB src CONFIGURE_DEPENDS "src/*.h" "src/*.c")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_C_FLAGS "-O2")
-add_executable(pong ${src})
 include_directories(pong ${SDL2_INCLUDE_DIRS})
+add_executable(pong ${src})
 target_link_libraries(pong -lSDL2_ttf -lm ${SDL2_LIBRARIES})
