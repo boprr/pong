@@ -14,7 +14,7 @@ int main() {
   TTF_Init();
 
   SDL_Window *win = SDL_CreateWindow("PONG", 0, 0, SCREEN_W, SCREEN_H, 0);
-  SDL_Renderer *ren = SDL_CreateRenderer(win, 0, SDL_RENDERER_ACCELERATED);
+  SDL_Renderer *ren = SDL_CreateRenderer(win, 0, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
 
   pallet player, bot;
   ball ball;
@@ -59,6 +59,9 @@ int main() {
     SDL_PollEvent(&event);
     key = SDL_GetKeyboardState(NULL);
 
+    player.d_last = player.d_new;
+    bot.d_last = bot.d_new;
+
     // -- Delta Time -- //
     dt_last = dt_now;
     dt_now = SDL_GetPerformanceCounter();
@@ -67,8 +70,6 @@ int main() {
 
     // -- Logic -- //
 
-    player.d_last = player.d_new;
-    bot.d_last = bot.d_new;
     player.d_new = player.pos;
     bot.d_new = bot.pos;
     player.delta = sub_vec2(player.d_new, player.d_last);
@@ -105,15 +106,15 @@ int main() {
 
     if (SDL_HasIntersection(&player.rect, &ball.col)) {
       ball.vel.x *= -1;
-      ball.pos.x += 1;
-      ball.vel.y += player.delta.y;
+      ball.col.x += 10;
+      ball.vel.y += player.delta.y / dt;
       ball.pos.y += 0.1;
       ball.vel.x *= 1.1f;
     }
     if (SDL_HasIntersection(&bot.rect, &ball.col)) {
       ball.vel.x *= -1;
-      ball.pos.x -= 1;
-      ball.vel.y += bot.delta.y;
+      ball.col.x -= 10;
+      ball.vel.y += bot.delta.y / dt;
       ball.pos.y -= 0.1;
       ball.vel.x *= 1.1f;
     }
@@ -195,6 +196,5 @@ int main() {
 
 /*
 --- TODO ---
-1. fix collisions on 10-200 fps
 2. audio
 */
